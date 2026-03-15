@@ -105,14 +105,15 @@ public record struct GamePadDatagram                   //added "record" which al
                     }
                  }
               }
-
+        }
+    }
 
 //================================================================= SEND
-
+    void FixedUpdate()
+    {
             byte[] bytes = SendDatagram(datagram);              // setting "bytes" to be a pointer to the datagram
             udpClient.Send(bytes, bytes.Length);                // and then SENDing that datagram pointed to by "bytes"
 
             //logText.text += "sending bytes:" + BitConverter.ToString(bytes);      // DEBUG NOTE: this could get big
 
-        }
-    }
+     }
