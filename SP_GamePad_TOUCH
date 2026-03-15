@@ -1,13 +1,13 @@
 // Copyright 2026 Screen Play
 
-using System.Linq;          //Using Any() and First()
+using System.Linq;          //Advacned collection methods Any() and First()
 
 //================================================================= DATAGRAM
 [StructLayout(LayoutKind.Sequential, Pack = 1)]        // <<=== THIS record struct MUST BE THE SAME IN GAME
 public record struct GamePadDatagram                   //added "record" which allows != and assignment a=b
 {
     public int RandomGamePadID;              // Just has to be unique within the wifi network
-    public float Distance;                   // Normalized between zero and one 0.0-1.0
+    public float Speed;                      // Normalized between zero and one 0.0-1.0
     public float Angle;                      // 0-360 with zero on the right
     private byte Button_flags;               // We store 4 booleans inside this single byte
 
@@ -21,7 +21,19 @@ public record struct GamePadDatagram                   //added "record" which al
     public bool GetBool(int index) => (Button_flags & (1 << index)) != 0;
 }
 
-//================================================================= Xa Yd Yt COORDS
+private GamePadDatagram datagram;
+private GamePadDatagram prior_datagram_sent;
+
+//================================================================= CORNER ENUM
+public enum Corner_Enum   // Clockwise starting bottom right
+{
+    BR_corner = 0,
+    BL_corner = 1,
+    TL_corner = 2,
+    TR_corner = 3
+}
+
+//================================================================= IMGUI SCREEN & TOUCH COORDS
     // Xa is X-All   // Yd is Y-Draw  // Yt is Y-Touch
 
     private int SPad_L_orig_Xa, SPad_L_orig_Yg, SPad_L_orig_Yt;    // Left SPad - Origin
@@ -36,9 +48,9 @@ public record struct GamePadDatagram                   //added "record" which al
 
     private int SPad_R_botL_Xa, SPad_R_botL_Yg, SPad_R_botL_Yt;    // Right SPad - Bot-Left
 
-    private GamePadDatagram datagram;
 
-//================================================================= START
+
+//================================================================= START() INITIALIZE STUFF
     void Start()
     {
 
@@ -46,18 +58,19 @@ public record struct GamePadDatagram                   //added "record" which al
 
         SetupScreenCoords();
 
+        prior_datagram_sent = new GamePadDatagram();     // Default constructor sets all fields to zero
+        datagram = new GamePadDatagram();                // Default constructor sets all fields to zero
+        datagram.RandomGamePadID = RandomNumberGenerator.GetInt32(Int32.MaxValue);
+
         udpClient = new UdpClient();
         udpClient.Connect("255.255.255.255", 27100);
-
-        datagram = new GamePadDatagram();
-        datagram.RandomGamePadID = RandomNumberGenerator.GetInt32(Int32.MaxValue);
 
         var firstIPv4Address = Dns.GetHostEntry(Dns.GetHostName()).AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork);
         logText.text += "ip:"+ firstIPv4Address + " listening on:27100";
     }
 
 
-//================================================================= UPDATE
+//================================================================= UPDATE() READ TOUCH & FILL DATAGRAM
     void Update()
     {
                                // THIS IS CALLED HERE TO SUPPORT 
@@ -73,18 +86,18 @@ public record struct GamePadDatagram                   //added "record" which al
             {
                 touch = Input.touches.First(t => t.phase == TouchPhase.Moved);    // Just get the first drag - ignore others
 
-                // DISTANCE from touch point to joystick center
+                // Speed (aka radius aka distance) from touch point to joystick center 
 
-                datagram.Distance = Vector2.Distance(touch.position, joystickCenter) / joystickRadius;  
+                datagram.Speed = Vector2.Distance(touch.position, joystickCenter) / joystickRadius;  
 
-                 // ANGLE in radians with zero being on the right and going up (so "up" is 90 degrees)
+                // ANGLE in radians with zero being on the right and going up (so "up" is 90 degrees)
+                // Industry convention says this should return 0-360 degrees, not radians
 
                 datagram.Angle = Mathf.Atan2(touch.position.y - joystickCenter.y, touch.position.x - joystickCenter.x) + (float)Math.PI;
-
             }
-            else // no DRAG touches are happening
+            else // no DRAG touches are happening, so we zero the Speed, 
             {
-                datagram.Distance = 0f;                   // No drags, so speed is zero  
+                datagram.Speed = 0f;                   // No drags, so speed is zero  
                 // ANGLE is retained                      // angle is aim, so keep shooting the same angle
             }
 
@@ -99,8 +112,8 @@ public record struct GamePadDatagram                   //added "record" which al
             {
                 if (touch.phase == TouchPhase.Stationary)
                 {
-                    if (Within_R_SPad_Area(touch.position.x, touch.position.y)  // gotta do this first because
-                    {                                                                // SetBool must have a valid corner
+                    if (Within_R_SPad_Area(touch.position.x, touch.position.y)  // gotta check this first because
+                    {                                                           // SetBool (below) must have a valid corner
                         datagam.SetBool(Which_R_SPad_Corner(touch.position.x, touch.position.y), true);     // CORNER ENUM 0 to 3
                     }
                  }
@@ -108,12 +121,53 @@ public record struct GamePadDatagram                   //added "record" which al
         }
     }
 
-//================================================================= SEND
-    void FixedUpdate()
+//================================================================= FIXEDUPDATE() SEND DATAAGRAM IF DIFFERENT
+    void FixedUpdate()                                          //This runs (default) every 20ms (0.02sec) 50fps
     {
+        if (datagram != prior_datagram_sent)                    // If this datagram is different, then send it
+        {
             byte[] bytes = SendDatagram(datagram);              // setting "bytes" to be a pointer to the datagram
             udpClient.Send(bytes, bytes.Length);                // and then SENDing that datagram pointed to by "bytes"
 
-            //logText.text += "sending bytes:" + BitConverter.ToString(bytes);      // DEBUG NOTE: this could get big
+            prior_datagram_sent = datagram;                     // save what we just sent
 
+            //logText.text += "sending bytes:" + BitConverter.ToString(bytes);      // DEBUG NOTE: this could get big
+        }
      }
+
+//================================================================= WHICH CORNER BUTTON TOUCHED
+    private integer Which_R_SPad_Corner(int x_touch, int y_touch)                                     
+    {
+        if (x_touch >= SPad_R_cent_Xa)  // Is it a Right button
+        {
+            if (y_touch >= SPad_R_cent_Yt )  // Is it a Top button
+            {
+                return TR_corner;   // Top Right button
+            }
+            else   // not Top, so must be a Bottom button
+            {
+                return BR_corner;  // Bottom Right button
+            }
+        } 
+        else  // not Right, so it must be a Left button
+        {
+            if (y_touch >= SPad_R_cent_Yt )  // Is it a Top button )
+            {
+                return TL_corner;   // Top Left button
+            }
+            else   // not Top, so must be a Bottom button
+            {
+                return BL_corner;   // Bottom Left button
+            }
+        }
+     }
+
+//================================================================= TOUCH IS WITHIN RIGHT SPad AREA
+    private boolean Within_R_SPad_Area (int x_touch, int y_touch)                                  
+    {
+        if (x_touch >= SPad_R_orig_Xa)
+        {
+            return true;
+        }
+    }
+
