@@ -28,7 +28,7 @@ private GamePadDatagram prior_datagram_sent;
 public enum Corner_Enum   // Clockwise starting bottom right
 {
     BR_corner = 0,
-    BL_corner = 1,
+    BL_corner = 1,        // NOTE: SetBool() uses these values as bit index
     TL_corner = 2,
     TR_corner = 3
 }
@@ -103,17 +103,17 @@ public enum Corner_Enum   // Clockwise starting bottom right
 
             // HANDLE STATIONARY BUTTON TOUCHES // ...............................................
 
-            datagram.SetBool(0, false);
-            datagram.SetBool(1, false;
-            datagram.SetBool(2, false);
-            datagram.SetBool(3, false);
+            datagram.SetBool(BR_corner, false);
+            datagram.SetBool(BL_corner, false;       // See ENUM called Corner_Enum
+            datagram.SetBool(TL_corner, false);
+            datagram.SetBool(TR_couner, false);
 
             foreach (Touch touch in Input.touches)
             {
                 if (touch.phase == TouchPhase.Stationary)
                 {
-                    if (Within_R_SPad_Area(touch.position.x, touch.position.y)  // gotta check this first because
-                    {                                                           // SetBool (below) must have a valid corner
+                    if (touch.position.x >= SPad_R_orig_Xa)  // gotta check this first cuz SetBool() needs valid corners 0-3
+                    {                              
                         datagam.SetBool(Which_R_SPad_Corner(touch.position.x, touch.position.y), true);     // CORNER ENUM 0 to 3
                     }
                  }
@@ -136,7 +136,7 @@ public enum Corner_Enum   // Clockwise starting bottom right
      }
 
 //================================================================= WHICH CORNER BUTTON TOUCHED
-    private integer Which_R_SPad_Corner(int x_touch, int y_touch)                                     
+    private Corner_Enum Which_R_SPad_Corner(int x_touch, int y_touch)        // Returns ENUM value of corner                                  
     {
         if (x_touch >= SPad_R_cent_Xa)  // Is it a Right button
         {
@@ -161,13 +161,4 @@ public enum Corner_Enum   // Clockwise starting bottom right
             }
         }
      }
-
-//================================================================= TOUCH IS WITHIN RIGHT SPad AREA
-    private boolean Within_R_SPad_Area (int x_touch, int y_touch)                                  
-    {
-        if (x_touch >= SPad_R_orig_Xa)
-        {
-            return true;
-        }
-    }
 
