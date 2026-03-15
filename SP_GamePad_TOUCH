@@ -1,0 +1,118 @@
+// Copyright 2026 Screen Play
+
+using System.Linq;          //Using Any() and First()
+
+//================================================================= DATAGRAM
+[StructLayout(LayoutKind.Sequential, Pack = 1)]        // <<=== THIS record struct MUST BE THE SAME IN GAME
+public record struct GamePadDatagram                   //added "record" which allows != and assignment a=b
+{
+    public int RandomGamePadID;              // Just has to be unique within the wifi network
+    public float Distance;                   // Normalized between zero and one 0.0-1.0
+    public float Angle;                      // 0-360 with zero on the right
+    private byte Button_flags;               // We store 4 booleans inside this single byte
+
+    public void SetBool(int index, bool value)      // Helper methods to work with bools
+    {
+        if (value)
+            Button_flags |= (byte)(1 << index);             // Set bit = 1
+        else
+            Button_flags &= (byte)~(1 << index);            // Clear bit = 0
+    }
+    public bool GetBool(int index) => (Button_flags & (1 << index)) != 0;
+}
+
+//================================================================= Xa Yd Yt COORDS
+    // Xa is X-All   // Yd is Y-Draw  // Yt is Y-Touch
+
+    private int SPad_L_orig_Xa, SPad_L_orig_Yg, SPad_L_orig_Yt;    // Left SPad - Origin
+
+    private int SPad_L_cent_Xa, SPad_L_cent_Yg, SPad_L_cent_Yt;    // Left SPad - Center
+
+    private int SPad_R_orig_Xa, SPad_R_orig_Yg, SPad_R_orig_Yt;    // Right SPad - Origin
+
+    private int SPad_R_cent_Xa, SPad_R_cent_Yg, SPad_R_cent_Yt;    // Right SPad - Center
+
+    private int SPad_R_topR_Xa, SPad_R_topR_Yg, SPad_R_topR_Yt;    // Right SPad - Top-Right
+
+    private int SPad_R_botL_Xa, SPad_R_botL_Yg, SPad_R_botL_Yt;    // Right SPad - Bot-Left
+
+    private GamePadDatagram datagram;
+
+//================================================================= START
+    void Start()
+    {
+
+        logoTexture2D = Resources.Load<Texture2D>("SP_Logo within Circle");
+
+        SetupScreenCoords();
+
+        udpClient = new UdpClient();
+        udpClient.Connect("255.255.255.255", 27100);
+
+        datagram = new GamePadDatagram();
+        datagram.RandomGamePadID = RandomNumberGenerator.GetInt32(Int32.MaxValue);
+
+        var firstIPv4Address = Dns.GetHostEntry(Dns.GetHostName()).AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork);
+        logText.text += "ip:"+ firstIPv4Address + " listening on:27100";
+    }
+
+
+//================================================================= UPDATE
+    void Update()
+    {
+                               // THIS IS CALLED HERE TO SUPPORT 
+        SetupScreenCoords();  //  LIVE SCREEN SIMULATOR CHANGES
+                             //  NORMALLY JUST CALLED in Start()
+
+        if (Input.touchCount > 0)
+        {
+
+            // HANDLE MOVE DRAG TOUCHES // ...............................................
+
+            if (Input.touches.Any(t => t.phase == TouchPhase.Moved);              // Are there any DRAG touches happening
+            {
+                touch = Input.touches.First(t => t.phase == TouchPhase.Moved);    // Just get the first drag - ignore others
+
+                // DISTANCE from touch point to joystick center
+
+                datagram.Distance = Vector2.Distance(touch.position, joystickCenter) / joystickRadius;  
+
+                 // ANGLE in radians with zero being on the right and going up (so "up" is 90 degrees)
+
+                datagram.Angle = Mathf.Atan2(touch.position.y - joystickCenter.y, touch.position.x - joystickCenter.x) + (float)Math.PI;
+
+            }
+            else // no DRAG touches are happening
+            {
+                datagram.Distance = 0f;                   // No drags, so speed is zero  
+                // ANGLE is retained                      // angle is aim, so keep shooting the same angle
+            }
+
+            // HANDLE STATIONARY BUTTON TOUCHES // ...............................................
+
+            datagram.SetBool(0, false);
+            datagram.SetBool(1, false;
+            datagram.SetBool(2, false);
+            datagram.SetBool(3, false);
+
+            foreach (Touch touch in Input.touches)
+            {
+                if (touch.phase == TouchPhase.Stationary)
+                {
+                    if (Within_R_SPad_Area(touch.position.x, touch.position.y)  // gotta do this first because
+                    {                                                                // SetBool must have a valid corner
+                        datagam.SetBool(Which_R_SPad_Corner(touch.position.x, touch.position.y), true);     // CORNER ENUM 0 to 3
+                    }
+                 }
+              }
+
+
+//================================================================= SEND
+
+            byte[] bytes = SendDatagram(datagram);              // setting "bytes" to be a pointer to the datagram
+            udpClient.Send(bytes, bytes.Length);                // and then SENDing that datagram pointed to by "bytes"
+
+            //logText.text += "sending bytes:" + BitConverter.ToString(bytes);      // DEBUG NOTE: this could get big
+
+        }
+    }
