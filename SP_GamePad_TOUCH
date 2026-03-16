@@ -23,15 +23,22 @@ public record struct GamePadDatagram                   //added "record" which al
 
 private GamePadDatagram datagram;
 private GamePadDatagram prior_datagram_sent;
+private Color RandomColor;
 
 //================================================================= CORNER ENUM
 public enum Corner_Enum   // Clockwise starting bottom right
 {
-    BR_corner = 0,
-    BL_corner = 1,        // NOTE: SetBool() uses these values as bit index
-    TL_corner = 2,
-    TR_corner = 3
+    BR_corner = 0, BL_corner = 1, TL_corner = 2, TR_corner = 3
 }
+
+//================================================================= COLOR STRING ARRAY
+public static readonly string[] TenColorStrings =
+{
+    "Red", "Green", "Blue", "Yellow", "Magenta",
+    "Cyan", "Orange", "Purple", "Lime", "Teal"
+};
+
+  
 
 //================================================================= IMGUI SCREEN & TOUCH COORDS
     // Xa is X-All   // Yd is Y-Draw  // Yt is Y-Touch
@@ -61,6 +68,7 @@ public enum Corner_Enum   // Clockwise starting bottom right
         prior_datagram_sent = new GamePadDatagram();     // Default constructor sets all fields to zero
         datagram = new GamePadDatagram();                // Default constructor sets all fields to zero
         datagram.RandomGamePadID = RandomNumberGenerator.GetInt32(Int32.MaxValue);
+        RandomColor = Color.FromName( TenColorStrings[datagram.RandomGamePadID%10] );  
 
         udpClient = new UdpClient();
         udpClient.Connect("255.255.255.255", 27100);
