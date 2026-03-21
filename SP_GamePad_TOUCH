@@ -21,8 +21,8 @@ public record struct GamePadDatagram                   //added "record" which al
     public bool GetBool(int index) => (Button_flags & (1 << index)) != 0;
 }
 
-private GamePadDatagram datagram;
-private GamePadDatagram prior_datagram_sent;
+private GamePadDatagram datagram;                    // Current datagram
+private GamePadDatagram prior_datagram_sent;         // Previous datagram
 private Color RandomColor;
 
 //================================================================= CORNER ENUM
@@ -67,8 +67,8 @@ public static readonly string[] TenColorStrings =
 
         prior_datagram_sent = new GamePadDatagram();     // Default constructor sets all fields to zero
         datagram = new GamePadDatagram();                // Default constructor sets all fields to zero
-        datagram.RandomGamePadID = RandomNumberGenerator.GetInt32(Int32.MaxValue);
-        RandomColor = Color.FromName( TenColorStrings[datagram.RandomGamePadID%10] );  
+        datagram.RandomGamePadID = RandomNumberGenerator.GetInt32(Int32.MaxValue);        // Set random ID
+        RandomColor = Color.FromName( TenColorStrings[datagram.RandomGamePadID%10] );     // Ones digit is color
 
         udpClient = new UdpClient();
         udpClient.Connect("255.255.255.255", 27100);
@@ -96,7 +96,11 @@ public static readonly string[] TenColorStrings =
 
                 // Speed (aka radius aka distance) from touch point to joystick center 
 
-                datagram.Speed = Vector2.Distance(touch.position, joystickCenter) / joystickRadius;  
+                if ((touch.position.x <= SPad_L_orig_Xa + SPad_Size)     // Drag is only valid 
+                && (touch.position.y <= SPad_L_orig_Yt + SPad_Size))     // inside the SPad area
+                {  
+                    datagram.Speed = Vector2.Distance(touch.position, joystickCenter) / joystickRadius;
+                }
 
                 // ANGLE in radians with zero being on the right and going up (so "up" is 90 degrees)
                 // Industry convention says this should return 0-360 degrees, not radians
@@ -106,7 +110,7 @@ public static readonly string[] TenColorStrings =
             else // no DRAG touches are happening, so we zero the Speed, 
             {
                 datagram.Speed = 0f;                   // No drags, so speed is zero  
-                // ANGLE is retained                      // angle is aim, so keep shooting the same angle
+                // ANGLE is retained                   // angle is aim, so keep shooting the same angle
             }
 
             // HANDLE STATIONARY BUTTON TOUCHES // ...............................................
